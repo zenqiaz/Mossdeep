@@ -3,9 +3,10 @@ import numpy as np
 import time
 import sys
 import json
+import nashpy as nash
 import matplotlib.pyplot as plt
 from winrate_matrix_str2 import winrate_matrix
-from strategy_matrix2 import strategy_matrix
+from strategy_matrix import strategy_matrix
 # Create a LP problem object
 
 def rec(R_matrix, epsilon = 0.1, max_turns = 20):#playerA wants to maximize aRb, and player B wants to minimize it, so high eq is that B chooses a strategy and A responses, then high eq > low eq. Reward function is aRb, so size of A strategy vector is len(R), size of B strategy vector is len(R[0]).
@@ -174,19 +175,29 @@ class chan_fight:
         return res/(a_range*b_range)
                     
     
+    def solve_P_matrix(self, R_matrix):
+        A=R_matrix
+        #print(R_matrix, hp_a, hp_b,strategy_matrix[hp_a][hp_b])
+        B=-A
+        game = nash.Game(A, B)
+        equilibria = game.support_enumeration()
+        equilibria_list = list(equilibria)
+        return equilibria_list
+    
     def DP(self,i,j):#0: mach punch; 1: focus punch; 2: upper hand
         res = [[0,0,0],[0,0,0],[0,0,0]]
         res[0][0] = (self.speed_roll(i,j, self.mach_high, self.mach_low, self.mach_high, self.mach_low, winner = 'a')+self.speed_roll(i,j, self.mach_high, self.mach_low, self.mach_high, self.mach_low, winner = 'b'))/2
         res[0][1] = self.average_winrate(i,j, self.mach_high, self.mach_low, winner = 'a')
         res[0][2] = self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'b')
         res[1][0] = self.average_winrate(i,j, self.mach_high, self.mach_low, winner = 'b')
-        res[1][1] = (self.speed_roll(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'a')+self.speed_roll(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'b'))/2
+        res[1][1] = (self.average_winrate(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'a')+self.average_winrate(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'b'))/2
         res[1][2] = self.average_winrate(i,j, self.focus_high, self.focus_low, winner = 'a')
         res[2][0] = self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'a')
         res[2][1] = self.average_winrate(i,j, self.focus_high, self.focus_low, winner = 'b')
         res[2][2] = (self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'b')+self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'a'))/2
         R_matrix = np.array(res)
-        A_opst, B_opst, high_eq = turn(R_matrix)
+        A_opst, B_opst = self.solve_P_matrix(R_matrix)
+        high_eq = A_opst @ R_matrix @ B_opst
         #print(R_matrix)
         return (A_opst, B_opst), high_eq#, R_matrix
     
@@ -196,42 +207,50 @@ class chan_fight:
         res[0][1] = self.average_winrate(i,j, self.mach_high, self.mach_low, winner = 'a')
         res[0][2] = self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'b')
         res[1][0] = self.average_winrate(i,j, self.mach_high, self.mach_low, winner = 'b')
-        res[1][1] = (self.speed_roll(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'a')+self.speed_roll(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'b'))/2
+        res[1][1] = (self.average_winrate(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'a')+self.average_winrate(i,j, self.focus_high, self.focus_low, self.focus_high, self.focus_low, winner = 'b'))/2
         res[1][2] = self.average_winrate(i,j, self.focus_high, self.focus_low, winner = 'a')
         res[2][0] = self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'a')
         res[2][1] = self.average_winrate(i,j, self.focus_high, self.focus_low, winner = 'b')
         res[2][2] = (self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'b')+self.average_winrate(i,j, self.upper_high, self.upper_low, winner = 'a'))/2
         R_matrix = np.array(res)
-        A_opst, B_opst, high_eq = turn(R_matrix)
+        A_opst, B_opst = self.solve_P_matrix(R_matrix)
+        high_eq = A_opst @ R_matrix @ B_opst
         #print(R_matrix)
         return (A_opst, B_opst), high_eq, R_matrix
+
+
 
 
 fight = chan_fight()
 fight.strategy_matrix[50][50]
 fight.winrate_matrix[28][28]
 
+
+
 i,j = 50,50
 fight.strategy_matrix[i][j], fight.winrate_matrix[i][j],R_matrix = fight.DP_show_matrix(i,j)
 fight.strategy_matrix[i][j]#(array([0.53082899, 0.30156925, 0.16760177]), array([0.53082899, 0.30156924, 0.16760177])) for 100,100
 fight.winrate_matrix[i][j]
 
-R_matrix
+(A_opst, B_opst), high_eq, R_matrix = fight.DP_show_matrix(80,61)
+
+
+
+
+
 fight.winrate_matrix_list = fight.winrate_matrix.tolist()
 
 # Convert the variable to a JSON string
 winrate_matrix_str = json.dumps(fight2.winrate_matrix)
 
-#array_tuples = [(np.array([1, 2, 3]), np.array([4, 5, 6])), 
-#                (np.array([7, 8, 9]), np.array([10, 11, 12]))]  
-# Imagine this with 10,000 tuples
-
-# Convert each NumPy array in each tuple to a Python list
 converted_nested_list = [
-    [(arr1.tolist(), arr2.tolist()) for arr1, arr2 in sublist]
-    for sublist in fight2.strategy_matrix
+    [(arr1[0].tolist(), arr1[1].tolist()) for arr1 in sublist]
+    for sublist in backup_s_matrix
 ]
+for i in converted_nested_list:
+    i.insert(0,0)
 
+converted_nested_list.insert(0,0)
 # Serialize the list of tuples of lists to JSON
 json_data = json.dumps(converted_nested_list)
 
@@ -247,9 +266,20 @@ for row in fight.winrate_matrix:
     row.append(0)
 
 # Add a new row of 101 zeros at the end of the nested list
+for col in 
 new_row = [0 for _ in range(101)]
 fight.winrate_matrix.append(new_row)
 A_opst, B_opst, high_eq = turn(np.array(winrate_matrix_100)/2-1)
 A_opst, B_opst, high_eq = turn(np.array(winrate_matrix_sim))
 for i in range(1,101):
-    print(i,fight2.strategy_matrix[i][i])
+    print(i,strategy_matrix[i][i])
+
+
+for i in range(1,101):
+    for j in range(1,101):
+        if i*j == 0:
+            backup_s_matrix[i][j] = [array([0.53082899, 0.30156925, 0.16760177]), array([0.53082899, 0.30156924, 0.16760177])]
+
+for i in range(1,101):
+    for j in range(1,101):
+        fight.strategy_matrix[i][j], fight.winrate_matrix[i][j] = fight.DP(i,j)
